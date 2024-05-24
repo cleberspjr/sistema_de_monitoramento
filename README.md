@@ -11,5 +11,5 @@ Ou execute o comando "python3 main.py 5"(ou 6) para apresentação dos gráficos
 
 Se a escolha for "python3 main.py 6", o dashboard estará em execução em http://127.0.0.1:8050
 
-Esse repositório contém coletas apenas do dia 2024-05-17, então ao acessar (http://127.0.0.1:8050) modifique a data para o dia 2024-05-17. 
+Esse repositório contém coletas apenas dos dias 2024-05-17 e 2024-05-24, então ao acessar (http://127.0.0.1:8050) modifique a data para esses dias. 
 
