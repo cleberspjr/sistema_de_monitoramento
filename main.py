@@ -2,7 +2,7 @@ import pandas as pd
 import thermal_zone_monitoring
 import dashboard_monitoring
 import teste_dash_monitoring
-from thermal_zone_monitoring import main, get_all_thermal_zones, get_all_temperatures, get_temperature, save_thermal_temperature
+from thermal_zone_monitoring import main, get_all_thermal_zones, get_all_temperatures_and_get_types, get_thermal_type, get_temperature, save_thermal_temperature
 from dashboard_monitoring import main, load_temperature_data, plot_interval_temperature
 from thermal_zone_monitoring import main as thermal_zone_main
 from teste_dash_monitoring import load_temperature_data, dashboard
@@ -43,7 +43,7 @@ def main():
                 app.run_server(debug=True)
 
             if __name__ == '__main__':
-                file_path = "historico_permanente_coletas_temperaturas.csv" 
+                file_path = "permanente_temperature_collection.csv" 
                 main(file_path)
         else:
             print("Invalid argument. Use '1, 2, 3, 4, 5 or 6' to choose a function.")

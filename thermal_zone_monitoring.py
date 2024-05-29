@@ -20,11 +20,12 @@ def get_all_thermal_zones():
             thermal_zones.append(os.path.join('/sys/class/thermal/', folder))
     return thermal_zones
 
-def get_all_temperatures(thermal_zones):
+def get_all_temperatures_and_get_types(thermal_zones): 
     temperatures = []
     for zone_path in thermal_zones:
         temperature = get_temperature(zone_path)
-        temperatures.append(temperature)
+        zone_type = get_thermal_type(zone_path)
+        temperatures.append((temperature, zone_type))
     return temperatures
 
 def get_temperature(zone_path):
@@ -32,6 +33,11 @@ def get_temperature(zone_path):
         temperature = file.read().strip()
     return int(temperature) / 1000
 
+def get_thermal_type(zone_path):
+    with open(os.path.join(zone_path, 'type'), 'r') as file:
+        zone_type = file.read().strip()
+    return zone_type
+    
 #Parameters:
 # intevalo: How many minutes of interval between each collect
 # duracao: The duration of the query (in minutes)
@@ -47,13 +53,17 @@ def save_thermal_temperature(temporary_file, permanent_file, intervalo, duracao)
     with open(temporary_file, 'a', newline='') as q_temp:
         writer = csv.writer(q_temp, delimiter=';')
         if not existe_arquivo_permanente:  # Se o arquivo permanente não existir
-            label = ["day", "time"] + [zone.split('/')[-1] for zone in thermal_zones]
-            writer.writerow(label)
+            headers = ["day", "time"]
+            for zone in thermal_zones:
+                zone_type = get_thermal_type(zone)
+                headers.append(f"{zone.split('/')[-1]} ({zone_type})")
+            writer.writerow(headers)
 
         while time.time() - inicio_execucao < tempo_total_execucao:
             now = datetime.now().strftime("%Y-%m-%d;%H:%M:%S")  # Modificado para separar a data e a hora
             record = [now.split(';')[0], now.split(';')[1]]  # Pegando a data e a hora separadamente
-            temperatures = get_all_temperatures(thermal_zones)
+            temperatures_and_types = get_all_temperatures_and_get_types(thermal_zones)
+            temperatures = [t[0] for t in temperatures_and_types]
             record.extend(temperatures)
             writer.writerow(record)
             time.sleep(intervalo * 60)
@@ -68,12 +78,11 @@ def save_thermal_temperature(temporary_file, permanent_file, intervalo, duracao)
     print("Coleta de temperaturas finalizadas.")
 
 
-
 def background_collect():
 
-    temporary_file = 'temperaturas_temporarias.csv'
-    permanent_file = 'historico_permanente_coletas_temperaturas.csv'
-    save_thermal_temperature(temporary_file, permanent_file, 0.50, 30)  # Coleta temperatura de todas as zonas térmicas a cada 1 minuto por 2 minutos
+    temporary_file = 'temp_temporarias.csv'
+    permanent_file = 'permanente_temperature_collection.csv'
+    save_thermal_temperature(temporary_file, permanent_file, 0.50, 150)  # Coleta temperatura de todas as zonas térmicas a cada 30 segundos por 2 horas e 30 minutos
     print("Thread 1")
 
 def background_collect_menu():
@@ -82,12 +91,6 @@ def background_collect_menu():
 
 
 def main():    
-    output_file_unico = "temp_database.csv"
-    output_file_varios = "temp_database_all.csv" 
-    output_file_varios_teste = "temp_database_all.csv" 
-    output_processor_info = "processor_info.csv"
-    #Especifica a zona termal que se quer medir    
-    
     # Exemplo de uso
     print("starting monitoring in background")    
 
