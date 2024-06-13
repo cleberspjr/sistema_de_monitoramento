@@ -1,115 +1,99 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import json
-from datetime import datetime
-import schedule
-import time
-import os
-import re
-import subprocess
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output
+import dash_bootstrap_components as dbc
 import pandas as pd
-from pathlib import Path
-import time
-import threading
+import plotly.express as px
 
-def load_temperature_data():
-    file_path = "historico_permanente_coletas_temperaturas.csv"
+def load_temperature_data(file_path):
     return pd.read_csv(file_path, delimiter=';')
 
-def plot_interval_temperature(dataframe, zone, initial_time_interval, final_time_interval, day, limite_temperatura):
-    df_filtered = dataframe[(dataframe['day'] == day) & (dataframe['time'] >= initial_time_interval) & (dataframe['time'] <= final_time_interval)]
+def dashboard(df):
+    app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SOLAR])
 
-    plt.figure(figsize=(10, 6))
+    app.layout = dbc.Container([
+        dbc.Row([
+            dbc.Col(html.H1("Dashboard from thermal zones", className='text-center text-primary mb-4'), width=12)
+        ]),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Selecione a zona térmica:", className='font-weight-bold'),
+                dcc.Dropdown(
+                    id='zone-dropdown',
+                    options=[{'label': col, 'value': col} for col in df.columns if 'zone' in col],
+                    value=df.columns[2],  
+                    className='mb-4'
+                ),
+            ], width=4),
+            dbc.Col([
+                html.Label("Intervalo de tempo inicial (HH:MM):", className='font-weight-bold'),
+                dcc.Input(id='initial-time', type='text', value='00:00', className='form-control mb-4')
+            ], width=4),
+            dbc.Col([
+                html.Label("Intervalo de tempo final (HH:MM):", className='font-weight-bold'),
+                dcc.Input(id='final-time', type='text', value='23:59', className='form-control mb-4')
+            ], width=4),
+        ]),
+        dbc.Row([
+            dbc.Col([
+                html.Label("Selecione o dia (YYYY-MM-DD):", className='font-weight-bold'),
+                dcc.Input(id='day', type='text', value='2024-05-20', className='form-control mb-4')
+            ], width=12),
+        ]),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id='temperature-graph', style={'backgroundColor': '#f8f9fa'}), width=12)  # Cor do contêiner do gráfico
+        ]),
+        dbc.Row([
+            dbc.Col(html.Div(id='alert-message', style={'color': 'red', 'fontWeight': 'bold', 'textAlign': 'center'}), width=12)
+        ])
+    ], fluid=True)
 
-    for column in df_filtered.columns:
-        if zone in column:
-            plt.plot(df_filtered['time'], df_filtered[column], label=column)
+    @app.callback(
+        [Output('temperature-graph', 'figure'),
+         Output('alert-message', 'children')],
+        [Input('zone-dropdown', 'value'),
+         Input('initial-time', 'value'),
+         Input('final-time', 'value'),
+         Input('day', 'value')]
+    )
+    def graphic(selected_zone, initial_time_interval, final_time_interval, day):
+        limite_temperatura = 75
+        df_filtered = df[(df['day'] == day) & (df['time'] >= initial_time_interval) & (df['time'] <= final_time_interval)]
 
-            # Verifica se a temperatura excede o limite
-            if df_filtered[column].max() > limite_temperatura:
-                # Envia um print na tela avisando o problema
-                print(f"ALERTA: A temperatura na zona térmica {column} excedeu o limite!")
-                alert_msg = "Temperatura acima do limite"
-                plt.text(0.98, 0.98, alert_msg, transform=plt.gca().transAxes, fontsize=12, color='white',
-                         ha='right', va='top', bbox=dict(facecolor='red', edgecolor='red', pad=8))
+        fig = px.line(df_filtered, x='time', y=selected_zone, title=f'Temperatura na {selected_zone} na data {day}')
+        fig.update_layout(
+            xaxis_title='Horario do dia',
+            yaxis_title='Temperatura em C°',
+            plot_bgcolor='rgba(0,0,0,0)',  # Cor do plano de fundo do gráfico
+            paper_bgcolor='rgba(0,0,0,0)',  # Cor do plano de fundo do papel
+            font=dict(color='black'),  # Cor do texto
+            title_font=dict(size=20, color='black', family='Arial'),
+            xaxis=dict(
+                showline=True,
+                showgrid=False,
+                showticklabels=True,
+                linecolor='black',
+                linewidth=2,
+                ticks='outside',
+                tickfont=dict(family='Arial', size=12, color='black',
+                ),
+            ),
+            yaxis=dict(
+                showline=True,
+                showgrid=True,
+                showticklabels=True,
+                linecolor='black',
+                linewidth=2,
+                ticks='outside',
+                tickfont=dict(family='Arial', size=12,color='black'),
+            )
+        )
 
+        alert_msg = ""
+        # Verifica se a temperatura excede o limite
+        if df_filtered[selected_zone].max() > limite_temperatura:
+            alert_msg = f"ALERTA: A temperatura na zona térmica {selected_zone} excedeu o limite!"
 
-    plt.title(f"Temperature for {day}")
-    plt.xlabel("Time")
-    plt.ylabel("Temperature (°C)")
-    plt.legend(loc='upper left')
-    plt.xticks(rotation=45, ha='right')
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+        return fig, alert_msg
 
-
-def save_info_proc_file(name_file ='info_proc.txt'):
-    informacoes = {}
-    
-    with open('/proc/cpuinfo', 'r') as file:
-        linhas = file.readlines()
-
-    for linha in linhas:
-        # Separa a linha em chave e valor
-        partes = linha.strip().split(':')
-        if len(partes) == 2:
-            chave = partes[0].strip()
-            valor = partes[1].strip()
-            informacoes[chave] = valor
-
-    with open("output/name_file", 'w') as file:
-        for chave, valor in informacoes.items():
-            file.write(f'{chave}: {valor}\n')
-
-    print(f'Informações do processador salvas em {name_file}')
-
-
-def print_several_temps_all_zones(file):
-    df = pd.read_csv(file, sep=";", header=None)
-    
-    time_list = df[df.columns[1]].values.tolist()[1:]
-    zones_dict = {}    
-    all_zones_in_a_dictionary(zones_dict, df)
-    print(zones_dict)
-    zonesdict = zones_dict
-    
-    df = pd.DataFrame(data=zonesdict)
-    df.index = time_list
-    df.plot.line(figsize=(10, 6))
-    plt.title("Temperaturas em todas as zonas")
-    plt.xlabel("Time")
-    plt.ylabel("Temperature (°C)")
-    plt.xticks(rotation=45, ha='right')
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-    
-#funcao nova
-def all_zones_in_a_dictionary(zones_dict, df):
-
-    for i in range(2, df.shape[1]):
-        print("accessing position:", i)
-        zone_name = df[df.columns[i]].values.tolist()[0]
-        temp_list = df[df.columns[i]].values.tolist()[1:]
-        temp_list_2 = [float(element) for element in temp_list]
-
-        zones_dict[str(zone_name)] = temp_list_2
-    return zones_dict
-
-def main():
-
-
-    #print("Here you will ask for the user's inputs and call all dashboard functions")
-
-    df = load_temperature_data()
-
-    zone = input("Digite a zona térmica desejada: ")
-    initial_time_interval = input("Digite o tempo inicial (HH:MM): ")
-    final_time_interval = input("Digite o tempo final (HH:MM): ")
-    day = input("Digite o dia que deseja plotar (YYYY-MM-DD): ")
-    limite_temperatura = 75
-
-    plot_interval_temperature(df, zone, initial_time_interval, final_time_interval, day, limite_temperatura)
-
- 
+    return app

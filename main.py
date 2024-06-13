@@ -1,11 +1,9 @@
 import pandas as pd
 import thermal_zone_monitoring
 import dashboard_monitoring
-import teste_dash_monitoring
 from thermal_zone_monitoring import main, get_all_thermal_zones, get_all_temperatures_and_get_types, get_thermal_type, get_temperature, save_thermal_temperature
-from dashboard_monitoring import main, load_temperature_data, plot_interval_temperature
+from dashboard_monitoring import load_temperature_data, dashboard
 from thermal_zone_monitoring import main as thermal_zone_main
-from teste_dash_monitoring import load_temperature_data, dashboard
 import sys
 import subprocess
 
@@ -34,9 +32,6 @@ def main():
             #consumption_monitoring.main()
         elif arg == "5":
             print("Dashboard monitoring will run in the current window")
-            dashboard_monitoring.main()
-        elif arg == "6":
-            print("Dashboard monitoring will run in the current window")
             def main(file_path):
                 df = load_temperature_data(file_path)
                 app = dashboard(df)
@@ -46,7 +41,7 @@ def main():
                 file_path = "permanente_temperature_collection.csv" 
                 main(file_path)
         else:
-            print("Invalid argument. Use '1, 2, 3, 4, 5 or 6' to choose a function.")
+            print("Invalid argument. Use '1, 2, 3, 4, 5' to choose a function.")
     else:
         print("Usage: python script.py [1|2]")
 
