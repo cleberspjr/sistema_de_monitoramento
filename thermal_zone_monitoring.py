@@ -83,7 +83,7 @@ def background_collect():
     temporary_file = 'temp_temporarias.csv'
     permanent_file = 'permanente_temperature_collection.csv'
     # realiza a coleta das zonas térmicas a cada 30 segundos por 60 minutos
-    save_thermal_temperature(temporary_file, permanent_file, 0.50, 60)  
+    save_thermal_temperature(temporary_file, permanent_file, 1, 500)  
     print("Thread 1")
 
 def background_collect_menu():
