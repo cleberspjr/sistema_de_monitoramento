@@ -1,49 +1,30 @@
-import pandas as pd
+import sys
 import thermal_zone_monitoring
 import dashboard_monitoring
-from thermal_zone_monitoring import main, get_all_thermal_zones, get_all_temperatures_and_get_types, get_thermal_type, get_temperature, save_thermal_temperature
-from dashboard_monitoring import load_temperature_data, dashboard
 from thermal_zone_monitoring import main as thermal_zone_main
-import sys
-import subprocess
+from dashboard_monitoring import load_temperature_data, dashboard
 
-def main_function_1():
-    print("Main function 1 is executing")
-    # Your code for the first main function goes here
-
-def main_function_2():
-    print("Main function 2 is executing")
-    # Your code for the second main function goes here
-#
 def main():
     if len(sys.argv) > 1:
         arg = sys.argv[1]
         if arg == "1":
-            print("Monitoring will run in the background")
-            process = subprocess.Popen(['python3', 'thermal_zone_monitoring.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        elif arg == "2":
             print("Monitoring will run in the current window")
-            thermal_zone_monitoring.main()
-        elif arg == "3":
-            print("Comsuption monitoring will run in the background")
-            process = subprocess.Popen(['python3', 'consumption_monitoring.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        elif arg == "4":
-            print("Comsuption monitoring will run in the current window")
-            #consumption_monitoring.main()
-        elif arg == "5":
-            print("Dashboard monitoring will run in the current window")
-            def main(file_path):
-                df = load_temperature_data(file_path)
-                app = dashboard(df)
-                app.run_server(debug=True)
+            thermal_zone_monitoring.main() 
 
-            if __name__ == '__main__':
-                file_path = "permanente_temperature_collection.csv" 
-                main(file_path)
+        elif arg == "6":    
+            print("Dashboard monitoring will run in the current window")
+            run_dashboard()
+
         else:
-            print("Invalid argument. Use '1, 2, 3, 4, 5' to choose a function.")
+            print("Invalid argument. Use '1 or 6' to choose a function.")
     else:
-        print("Usage: python script.py [1|2]")
+        print("Usage: python script.py [1|6]")
+
+def run_dashboard():
+    df_temp = load_temperature_data("permanente_temperature_collection.csv")
+    df_cpu = load_temperature_data("consumption_permanent_file.csv")
+    app = dashboard(df_temp, df_cpu)
+    app.run_server(debug=True)
 
 if __name__ == "__main__":
     main()
