@@ -4,12 +4,43 @@ from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
+import smtplib, ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 def load_temperature_data(file_path):
     return pd.read_csv(file_path, delimiter=';')
 
 def load_cpu_data(file_path):
     return pd.read_csv(file_path, delimiter=';')
+
+def send_email_alert(temperature, time, zone):
+    sender_email = "fulano.email"
+    receiver_email = "siclano.email"
+    password = "sua_senha"
+
+    subject = "Alerta de Temperatura Excedente"
+    body = f"A temperatura na zona {zone} excedeu o limite! \n\n" \
+           f"Temperatura: {temperature} C°\n" \
+           f"Horário: {time}\n"
+    
+    message = MIMEMultipart("alternative")
+    message["Subject"] = "ALERTA DE TEMPERATURA EXCEDIDA"
+    message["From"] = sender_email
+    message["To"] = receiver_email
+    message.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)  # Substitua pelo seu servidor SMTP
+        server.starttls()
+        server.login(sender_email, password)
+        text = message.as_string()
+        server.sendmail(sender_email, receiver_email, text)
+        server.quit()
+        print("E-mail de alerta enviado com sucesso!")
+    except Exception as e:
+        print(f"Erro ao enviar e-mail: {e}")
+
 
 def dashboard(df_temp, df_cpu):
     app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SOLAR])
@@ -75,7 +106,7 @@ def dashboard(df_temp, df_cpu):
          Input('day', 'value')]
     )
     def update_temperature_graph(selected_zone, initial_time_interval, final_time_interval, day):
-        limite_temperatura = 40
+        limite_temperatura = 60
         df_filtered = df_temp[(df_temp['day'] == day) & (df_temp['time'] >= initial_time_interval) & (df_temp['time'] <= final_time_interval)]
 
         fig = px.line(df_filtered, x='time', y=selected_zone, title=f'Temperatura na {selected_zone} na data {day}')
@@ -106,9 +137,32 @@ def dashboard(df_temp, df_cpu):
             )
         )
 
+        # Adicionando a linha horizontal no gráfico para indicar o limite máximo de temperatura
+        fig.add_hline(y=limite_temperatura, line_dash="dash", line_color="red", annotation_text="Limite Máximo", 
+                      annotation_position="top right")
+
         alert_msg = ""
         if df_filtered[selected_zone].max() > limite_temperatura:
             alert_msg = f"ALERTA: A temperatura na zona térmica {selected_zone} excedeu o limite!"
+
+            # Encontra o tempo exato em que a temperatura excedeu o limite
+            tempo_excedeu = df_filtered[df_filtered[selected_zone] > limite_temperatura]['time'].iloc[0]
+            temperatura_excedeu = df_filtered[df_filtered[selected_zone] > limite_temperatura][selected_zone].iloc[0]
+
+            send_email_alert(temperatura_excedeu, tempo_excedeu, selected_zone)
+
+            # Adiciona uma anotação no gráfico onde a temperatura excedeu o limite
+            fig.add_annotation(
+                x=tempo_excedeu,
+                y=temperatura_excedeu,
+                text="Excedeu limite!",
+                showarrow=True,
+                arrowhead=2,
+                ax=0,
+                ay=-40,
+                font=dict(color="red", size=12, family="Arial"),
+                bgcolor="rgba(255,255,255,0.6)"
+            )
 
         return fig, alert_msg
 

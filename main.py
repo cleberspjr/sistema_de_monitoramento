@@ -11,14 +11,14 @@ def main():
             print("Monitoring will run in the current window")
             thermal_zone_monitoring.main() 
 
-        elif arg == "6":    
+        elif arg == "2":    
             print("Dashboard monitoring will run in the current window")
             run_dashboard()
 
         else:
-            print("Invalid argument. Use '1 or 6' to choose a function.")
+            print("Invalid argument. Use '1 or 2' to choose a function.")
     else:
-        print("Usage: python script.py [1|6]")
+        print("Usage: python script.py [1|2]")
 
 def run_dashboard():
     df_temp = load_temperature_data("permanente_temperature_collection.csv")
