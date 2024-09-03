@@ -14,6 +14,7 @@ def load_temperature_data(file_path):
 def load_cpu_data(file_path):
     return pd.read_csv(file_path, delimiter=';')
 
+# função para enviar alerta no email
 def send_email_alert(temperature, time, zone):
     sender_email = "fulano.email"
     receiver_email = "siclano.email"
@@ -31,7 +32,7 @@ def send_email_alert(temperature, time, zone):
     message.attach(MIMEText(body, 'plain'))
 
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)  # Substitua pelo seu servidor SMTP
+        server = smtplib.SMTP('smtp.gmail.com', 587)  
         server.starttls()
         server.login(sender_email, password)
         text = message.as_string()
@@ -137,7 +138,7 @@ def dashboard(df_temp, df_cpu):
             )
         )
 
-        # Adicionando a linha horizontal no gráfico para indicar o limite máximo de temperatura
+        # aqui eu add uma linha horizontal no gráfico indicando o limite de temperatura máxima 
         fig.add_hline(y=limite_temperatura, line_dash="dash", line_color="red", annotation_text="Limite Máximo", 
                       annotation_position="top right")
 
@@ -145,13 +146,13 @@ def dashboard(df_temp, df_cpu):
         if df_filtered[selected_zone].max() > limite_temperatura:
             alert_msg = f"ALERTA: A temperatura na zona térmica {selected_zone} excedeu o limite!"
 
-            # Encontra o tempo exato em que a temperatura excedeu o limite
+            #aqui eh o tempo exato onde excedeu o limite 
             tempo_excedeu = df_filtered[df_filtered[selected_zone] > limite_temperatura]['time'].iloc[0]
             temperatura_excedeu = df_filtered[df_filtered[selected_zone] > limite_temperatura][selected_zone].iloc[0]
 
             send_email_alert(temperatura_excedeu, tempo_excedeu, selected_zone)
 
-            # Adiciona uma anotação no gráfico onde a temperatura excedeu o limite
+            # aqui eu anoto no gráfico o local onde excedeu o limite
             fig.add_annotation(
                 x=tempo_excedeu,
                 y=temperatura_excedeu,
