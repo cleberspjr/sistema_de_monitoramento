@@ -2,209 +2,301 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
+import plotly.graph_objs as go
+import mariadb
 import pandas as pd
-import plotly.express as px
-import smtplib, ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
-def load_temperature_data(file_path):
-    return pd.read_csv(file_path, delimiter=';')
-
-def load_cpu_data(file_path):
-    return pd.read_csv(file_path, delimiter=';')
-
-# função para enviar alerta no email
-def send_email_alert(temperature, time, zone):
-    sender_email = "fulano.email"
-    receiver_email = "siclano.email"
-    password = "sua_senha"
-
-    subject = "Alerta de Temperatura Excedente"
-    body = f"A temperatura na zona {zone} excedeu o limite! \n\n" \
-           f"Temperatura: {temperature} C°\n" \
-           f"Horário: {time}\n"
-    
-    message = MIMEMultipart("alternative")
-    message["Subject"] = "ALERTA DE TEMPERATURA EXCEDIDA"
-    message["From"] = sender_email
-    message["To"] = receiver_email
-    message.attach(MIMEText(body, 'plain'))
-
+# Função para obter dados do banco de dados
+def get_data_from_db(query):
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)  
-        server.starttls()
-        server.login(sender_email, password)
-        text = message.as_string()
-        server.sendmail(sender_email, receiver_email, text)
-        server.quit()
-        print("E-mail de alerta enviado com sucesso!")
-    except Exception as e:
-        print(f"Erro ao enviar e-mail: {e}")
+        conn = mariadb.connect(
+            user="monitoring_user",
+            password="123456",
+            host="localhost",
+            database="temp_thermal_temperatures"
+        )
+        cursor = conn.cursor()
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        conn.close()
+        return pd.DataFrame(rows, columns=columns)
+    except mariadb.Error as e:
+        print(f"Error connecting to MariaDB Platform: {e}")
+        return pd.DataFrame()
 
+# Função para carregar dados de temperatura
+def load_temperature_data():
+    query = "SELECT * FROM monitoring"
+    return get_data_from_db(query)
 
-def dashboard(df_temp, df_cpu):
+# Função para carregar dados de consumo de CPU
+def load_cpu_data():
+    query = "SELECT * FROM consumption"
+    return get_data_from_db(query)
+
+# Função para criar o dashboard
+def create_dashboard(df_temp, df_cpu):
+    # Aplicando o tema Solar ao Dash
     app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SOLAR])
+    app.title = "Dashboard de Monitoramento"
 
-    app.layout = dbc.Container([
-        dbc.Row([
-            dbc.Col(html.H1("Dashboard from thermal zones", className='text-center text-primary mb-4'), width=12)
-        ]),
+    app.layout = dbc.Container([ 
+        html.H1("Dashboard de Monitoramento de Temperatura e Consumo de CPU", style={'textAlign': 'center', 'margin': '20px 0', 'color': 'white'}),
+
+        # Contêiner para os labels (zona térmica, data, hora inicial e final)
         dbc.Row([
             dbc.Col([
-                html.Label("Selecione a zona térmica:", className='font-weight-bold'),
+                html.Label('Selecione a Zona Térmica:', style={'fontSize': 18, 'color': 'white'}),
                 dcc.Dropdown(
-                    id='zone-dropdown',
-                    options=[{'label': col, 'value': col} for col in df_temp.columns if 'zone' in col],
-                    value=df_temp.columns[2],  
-                    className='mb-4'
-                ),
-            ], width=4),
+                    id='zone-selector',
+                    options=[{'label': zone, 'value': zone} for zone in df_temp.columns[2:]],
+                    value=df_temp.columns[2],  # Valor padrão
+                    style={'color': 'black'}
+                )
+            ], width=3),
+
             dbc.Col([
-                html.Label("Intervalo de tempo inicial (HH:MM):", className='font-weight-bold'),
-                dcc.Input(id='initial-time', type='text', value='00:00', className='form-control mb-4')
-            ], width=4),
+                html.Label('Data (AAAA-MM-DD):', style={'fontSize': 18, 'color': 'white'}),
+                dcc.Input(
+                    id='date-input',
+                    type='text',
+                    placeholder='AAAA-MM-DD',
+                    value='2024-10-23',  # Valor padrão
+                    style={'width': '100%'}
+                )
+            ], width=3),
+
             dbc.Col([
-                html.Label("Intervalo de tempo final (HH:MM):", className='font-weight-bold'),
-                dcc.Input(id='final-time', type='text', value='23:59', className='form-control mb-4')
-            ], width=4),
-        ]),
-        dbc.Row([
+                html.Label('Hora Inicial:', style={'fontSize': 18, 'color': 'white'}),
+                dcc.Input(
+                    id='start-time',
+                    type='text',
+                    placeholder='HH:MM',
+                    value='00:00',
+                    style={'width': '100%'}
+                )
+            ], width=3),
+
             dbc.Col([
-                html.Label("Selecione o dia (YYYY-MM-DD):", className='font-weight-bold'),
-                dcc.Input(id='day', type='text', value='2024-05-20', className='form-control mb-4')
-            ], width=12),
-        ]),
-        dbc.Row([
-            dbc.Col(dcc.Graph(id='temperature-graph', style={'backgroundColor': '#f8f9fa'}), width=12)
-        ]),
-        dbc.Row([
-            dbc.Col(html.Div(id='alert-message', style={'color': 'red', 'fontWeight': 'bold', 'textAlign': 'center'}), width=12)
-        ]),
-        dbc.Row([
-            dbc.Col([
-                html.Label("Selecione o CPU:", className='font-weight-bold'),
-                dcc.Dropdown(
-                    id='cpu-dropdown',
-                    options=[{'label': col, 'value': col} for col in df_cpu.columns if col.startswith('cpu')],
-                    value=df_cpu.columns[2],
-                    multi=True,
-                    className='mb-4'
-                ),
-            ], width=12),
-        ]),
-        dbc.Row([
-            dbc.Col(dcc.Graph(id='cpu-usage-graph', style={'backgroundColor': '#f8f9fa'}), width=12)
-        ]),
-    ], fluid=True)
-
-    @app.callback(
-        [Output('temperature-graph', 'figure'),
-         Output('alert-message', 'children')],
-        [Input('zone-dropdown', 'value'),
-         Input('initial-time', 'value'),
-         Input('final-time', 'value'),
-         Input('day', 'value')]
-    )
-    def update_temperature_graph(selected_zone, initial_time_interval, final_time_interval, day):
-        limite_temperatura = 60
-        df_filtered = df_temp[(df_temp['day'] == day) & (df_temp['time'] >= initial_time_interval) & (df_temp['time'] <= final_time_interval)]
-
-        fig = px.line(df_filtered, x='time', y=selected_zone, title=f'Temperatura na {selected_zone} na data {day}')
-        fig.update_layout(
-            xaxis_title='Horario do dia',
-            yaxis_title='Temperatura em C°',
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='black'),
-            title_font=dict(size=20, color='black', family='Arial'),
-            xaxis=dict(
-                showline=True,
-                showgrid=False,
-                showticklabels=True,
-                linecolor='black',
-                linewidth=2,
-                ticks='outside',
-                tickfont=dict(family='Arial', size=12, color='black'),
-            ),
-            yaxis=dict(
-                showline=True,
-                showgrid=True,
-                showticklabels=True,
-                linecolor='black',
-                linewidth=2,
-                ticks='outside',
-                tickfont=dict(family='Arial', size=12,color='black'),
-            )
-        )
-
-        # aqui eu add uma linha horizontal no gráfico indicando o limite de temperatura máxima 
-        fig.add_hline(y=limite_temperatura, line_dash="dash", line_color="red", annotation_text="Limite Máximo", 
-                      annotation_position="top right")
-
-        alert_msg = ""
-        if df_filtered[selected_zone].max() > limite_temperatura:
-            alert_msg = f"ALERTA: A temperatura na zona térmica {selected_zone} excedeu o limite!"
-
-            #aqui eh o tempo exato onde excedeu o limite 
-            tempo_excedeu = df_filtered[df_filtered[selected_zone] > limite_temperatura]['time'].iloc[0]
-            temperatura_excedeu = df_filtered[df_filtered[selected_zone] > limite_temperatura][selected_zone].iloc[0]
-
-            send_email_alert(temperatura_excedeu, tempo_excedeu, selected_zone)
-
-            # aqui eu anoto no gráfico o local onde excedeu o limite
-            fig.add_annotation(
-                x=tempo_excedeu,
-                y=temperatura_excedeu,
-                text="Excedeu limite!",
-                showarrow=True,
-                arrowhead=2,
-                ax=0,
-                ay=-40,
-                font=dict(color="red", size=12, family="Arial"),
-                bgcolor="rgba(255,255,255,0.6)"
-            )
-
-        return fig, alert_msg
-
-    @app.callback(
-        Output('cpu-usage-graph', 'figure'),
-        [Input('cpu-dropdown', 'value'),
-         Input('initial-time', 'value'),
-         Input('final-time', 'value'),
-         Input('day', 'value')]
-    )
-    def update_cpu_usage_graph(selected_cpus, initial_time_interval, final_time_interval, day):
-        df_cpu_filtered = df_cpu[(df_cpu['day'] == day) & (df_cpu['time'] >= initial_time_interval) & (df_cpu['time'] <= final_time_interval)]
+                html.Label('Hora Final:', style={'fontSize': 18, 'color': 'white'}),
+                dcc.Input(
+                    id='end-time',
+                    type='text',
+                    placeholder='HH:MM',
+                    value='23:59',
+                    style={'width': '100%'}
+                )
+            ], width=3)
+        ], style={'padding': '20px'}),
         
-        fig = px.line(df_cpu_filtered, x='time', y=selected_cpus, title=f'Consumo de CPU na data {day}')
-        fig.update_layout(
-            xaxis_title='Horario do dia',
-            yaxis_title='Uso de CPU (%)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='black'),
-            title_font=dict(size=20, color='black', family='Arial'),
-            xaxis=dict(
-                showline=True,
-                showgrid=False,
-                showticklabels=True,
-                linecolor='black',
-                linewidth=2,
-                ticks='outside',
-                tickfont=dict(family='Arial', size=12, color='black'),
-            ),
-            yaxis=dict(
-                showline=True,
-                showgrid=True,
-                showticklabels=True,
-                linecolor='black',
-                linewidth=2,
-                ticks='outside',
-                tickfont=dict(family='Arial', size=12,color='black'),
+        # Dropdown para selecionar múltiplos CPUs
+        dbc.Row([
+            dbc.Col([
+                html.Label('Selecione os CPUs:', style={'fontSize': 18, 'color': 'white'}),
+                dcc.Dropdown(
+                    id='cpu-selector',
+                    options=[{'label': f'CPU {cpu}', 'value': cpu} for cpu in df_cpu.columns[2:]],
+                    multi=True,  # Permitir múltipla seleção
+                    value=[df_cpu.columns[2]],  # Valor padrão (primeiro CPU)
+                    style={'color': 'black'}
+                )
+            ], width=6)
+        ], style={'padding': '20px'}),
+
+        # Gráficos de temperaturas e consumo de CPU
+        dbc.Row([
+            dbc.Col([
+                html.H2("Temperaturas das Zonas Térmicas", style={'textAlign': 'center'}),
+                dcc.Graph(id="temperature-graph")
+            ], width=6),
+
+            dbc.Col([
+                html.H2("Consumo de CPU", style={'textAlign': 'center'}),
+                dcc.Graph(id="cpu-consumption-graph")
+            ], width=6)
+        ]),
+
+        # Intervalo para atualização automática dos gráficos (a cada 60 segundos)
+        dcc.Interval(
+            id='interval-component',
+            interval=60*40000,  # em milissegundos
+            n_intervals=0
+        ),
+
+        # Dropdown para selecionar múltiplas zonas térmicas
+        dbc.Row([
+            dbc.Col([
+                html.Label('Selecione as Zonas Térmicas para Visualizar:', style={'fontSize': 18, 'color': 'white'}),
+                dcc.Dropdown(
+                    id='multi-zone-selector',
+                    options=[{'label': zone, 'value': zone} for zone in df_temp.columns[2:]],
+                    multi=True,  # Permitir múltipla seleção
+                    value=[df_temp.columns[2]],  # Valor padrão (primeira zona térmica)
+                    style={'color': 'black'}
+                )
+            ], width=6)
+        ], style={'padding': '20px'}),
+
+        # Gráfico comparativo das zonas térmicas e gráfico para CPU original
+        dbc.Row([
+            dbc.Col([
+                html.H2("Comparativo das Zonas Térmicas", style={'textAlign': 'center'}),
+                dcc.Graph(id="multi-zone-temperature-graph")
+            ], width=6),
+
+            dbc.Col([
+                html.H2("Consumo da CPU Original", style={'textAlign': 'center'}),
+                dcc.Graph(id="original-cpu-graph")
+            ], width=6)
+        ])
+    ], fluid=True)  # 'fluid=True' garante que o layout ocupe toda a largura da página
+
+    # Callback para atualizar o gráfico de temperaturas
+    @app.callback(
+        Output('temperature-graph', 'figure'),
+        [Input('interval-component', 'n_intervals'),
+         Input('zone-selector', 'value'),
+         Input('date-input', 'value'),
+         Input('start-time', 'value'),
+         Input('end-time', 'value')]
+    )
+    def update_temperature_graph(n, selected_zone, selected_date, start_time, end_time):
+        if df_temp.empty:
+            return go.Figure()
+
+        # Filtrar os dados de acordo com a data e hora
+        df_filtered = df_temp[(df_temp['day'] == selected_date) & 
+                              (df_temp['time'] >= start_time) & 
+                              (df_temp['time'] <= end_time)]
+
+        traces = [
+            go.Scatter(
+                x=df_filtered['time'], 
+                y=df_filtered[selected_zone],
+                mode='lines',
+                name=selected_zone
             )
-        )
-        return fig
+        ]
 
-    return app
+        return {
+            'data': traces,
+            'layout': go.Layout(
+                title=f"Temperatura da Zona {selected_zone} no Dia {selected_date}",
+                xaxis={'title': 'Hora'},
+                yaxis={'title': 'Temperatura (°C)'},
+                hovermode='closest'
+            )
+        }
 
+    # Callback para atualizar o gráfico de consumo de CPU
+    @app.callback(
+        Output('cpu-consumption-graph', 'figure'),
+        [Input('interval-component', 'n_intervals'),
+         Input('cpu-selector', 'value'),
+         Input('date-input', 'value'),
+         Input('start-time', 'value'),
+         Input('end-time', 'value')]
+    )
+    def update_cpu_graph(n, selected_cpus, selected_date, start_time, end_time):
+        if df_cpu.empty:
+            return go.Figure()
+
+        # Filtrar os dados de acordo com a data e hora
+        df_filtered = df_cpu[(df_cpu['day'] == selected_date) & 
+                             (df_cpu['time'] >= start_time) & 
+                             (df_cpu['time'] <= end_time)]
+
+        traces = []
+        for cpu in selected_cpus:
+            traces.append(go.Scatter(
+                x=df_filtered['time'], 
+                y=df_filtered[cpu],
+                mode='lines',
+                name=f'CPU {cpu}'
+            ))
+
+        return {
+            'data': traces,
+            'layout': go.Layout(
+                title="Consumo de CPU ao Longo do Tempo",
+                xaxis={'title': 'Hora'},
+                yaxis={'title': 'Uso da CPU (%)'},
+                hovermode='closest'
+            )
+        }
+
+    # Callback para atualizar o gráfico comparativo das zonas térmicas
+    @app.callback(
+        Output('multi-zone-temperature-graph', 'figure'),
+        [Input('interval-component', 'n_intervals'),
+         Input('multi-zone-selector', 'value'),
+         Input('date-input', 'value'),
+         Input('start-time', 'value'),
+         Input('end-time', 'value')]
+    )
+    def update_multi_zone_graph(n, selected_zones, selected_date, start_time, end_time):
+        if df_temp.empty:
+            return go.Figure()
+        # Filtrar os dados de acordo com a data e hora
+        df_filtered = df_temp[(df_temp['day'] == selected_date) & 
+                              (df_temp['time'] >= start_time) & 
+                              (df_temp['time'] <= end_time)]
+
+        traces = []
+        for zone in selected_zones:
+            traces.append(go.Scatter(
+                x=df_filtered['time'], 
+                y=df_filtered[zone],
+                mode='lines',
+                name=zone
+            ))
+
+        return {
+            'data': traces,
+            'layout': go.Layout(
+                title="Comparativo de Temperaturas das Zonas Térmicas",
+                xaxis={'title': 'Hora'},
+                yaxis={'title': 'Temperatura (°C)'},
+                hovermode='closest'
+            )
+        }
+
+    # Callback para atualizar o gráfico da CPU original
+    @app.callback(
+        Output('original-cpu-graph', 'figure'),
+        [Input('interval-component', 'n_intervals'),
+         Input('date-input', 'value'),
+         Input('start-time', 'value'),
+         Input('end-time', 'value')]
+    )
+    def update_original_cpu_graph(n, selected_date, start_time, end_time):
+        if df_cpu.empty:
+            return go.Figure()
+
+        # Filtrar os dados de acordo com a data e hora
+        df_filtered = df_cpu[(df_cpu['day'] == selected_date) & 
+                             (df_cpu['time'] >= start_time) & 
+                             (df_cpu['time'] <= end_time)]
+
+        # Gráfico apenas para a CPU original
+        traces = [
+            go.Scatter(
+                x=df_filtered['time'],
+                y=df_filtered['cpu'],  # Coluna para a CPU original
+                mode='lines',
+                name='CPU Original'
+            )
+        ]
+
+        return {
+            'data': traces,
+            'layout': go.Layout(
+                title="Consumo da CPU Original ao Longo do Tempo",
+                xaxis={'title': 'Hora'},
+                yaxis={'title': 'Uso da CPU (%)'},
+                hovermode='closest'
+            )
+        }
+    
+    return app 
