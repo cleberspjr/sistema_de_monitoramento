@@ -1,3 +1,5 @@
+## Autor: Cleber Santos Pinto Júnior - https://github.com/cleberspjr
+
 # sistema-monitoramento
 Protótipo de software leve e customizável para monitoramento térmico e consumo de CPU, com visualização via Dashboard interativo 
 Este protótipo de sistema coleta dados térmicos e de uso da CPU, armazena em um banco de dados MariaDB e os apresenta em um painel web com gráficos interativos.
@@ -8,16 +10,16 @@ Este protótipo de sistema coleta dados térmicos e de uso da CPU, armazena em u
 
 •Dashboard responsivo e interativo com seleção por:
 
-    •Zona térmica
-    •Data e intervalo de horário
-    •Múltiplos CPUs
+    1. Zona térmica
+    2. Data e intervalo de horário
+    3. Múltiplos CPUs
 
 •Visualizações comparativas:
 
-    •Temperaturas por zona
-    •Consumo da CPU original e múltiplos CPUs
+    1. Temperaturas por zona
+    2. Consumo da CPU original e múltiplos CPUs
 
-🧰 Tecnologias utilizadas
+🧰 Tecnologias utilizadas: 
 •Python 3
 •Dash (Plotly)
 •Dash Bootstrap Components
@@ -28,12 +30,13 @@ Este protótipo de sistema coleta dados térmicos e de uso da CPU, armazena em u
 🖥️ Requisitos
 
 Antes de rodar o projeto, instale os seguintes pacotes no ambiente Python:
-pip install dash dash-bootstrap-components pandas mariadb plotly
+
+    •pip install dash dash-bootstrap-components pandas mariadb plotly
 
 Além disso, é necessário ter:
 
-Python 3.8 ou superior
-MariaDB instalado e configurado localmente
+1. Python 3.8 ou superior
+2. MariaDB instalado e configurado localmente
 
 
 ⚙️ Como Executar (Ubuntu / VS Code)
@@ -42,7 +45,7 @@ MariaDB instalado e configurado localmente
     git clone https://github.com/seu-usuario/seu-repositorio.git
 
 2. Instale as dependências:
-    pip install dash dash-bootstrap-components pandas mariadb plotly
+    •pip install dash dash-bootstrap-components pandas mariadb plotly
 
 3. Execute uma das opções abaixo:
    ▶️ Opção 1 - Coleta de dados térmicos
